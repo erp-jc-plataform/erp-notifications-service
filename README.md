@@ -1,498 +1,382 @@
 # Business-Notificaciones
 
-Microservicio de notificaciones en tiempo real para BusinessApp. Gestiona notificaciones en tiempo real mediante WebSockets, push notifications (Web Push y FCM), y notificaciones in-app almacenadas en MongoDB.
+Microservicio de notificaciones en tiempo real para Business ERP. Gestiona notificaciones in-app via WebSocket (Socket.IO), push notifications moviles/web (VAPID, FCM), procesamiento de colas con BullMQ y persistencia en MongoDB. Desarrollado con TypeScript, Express y arquitectura limpia.
 
-## 🚀 Características
+---
 
-- **Notificaciones en Tiempo Real**: WebSocket con Socket.IO y Redis adapter para escalabilidad
-- **Push Notifications**: Soporte para Web Push (VAPID) y Firebase Cloud Messaging (Android/iOS)
-- **Notificaciones In-App**: Almacenamiento persistente en MongoDB
-- **Preferencias de Usuario**: Configuración granular por tipo de notificación y canal
-- **Quiet Hours**: Horarios personalizados sin notificaciones
-- **Arquitectura Hexagonal**: Código limpio y mantenible
-- **Event-Driven**: Integración con Kafka para eventos del sistema
-- **Queue Processing**: BullMQ para procesamiento asíncrono de notificaciones push
+## Lenguaje y Stack Tecnologico
 
-## 📋 Requisitos
+| Capa | Tecnologia | Version |
+|------|-----------|---------|
+| Lenguaje | TypeScript | 5.3.2 |
+| Runtime | Node.js | >= 18 |
+| Framework HTTP | Express | 4.18.2 |
+| WebSocket | Socket.IO | 4.6.0 |
+| Adapter Redis | @socket.io/redis-adapter | 8.2.1 |
+| Base de datos | MongoDB | 6.3.0 |
+| Cola de mensajes | BullMQ | 5.0.0 |
+| Cache / Broker | Redis (ioredis) | 5.3.2 |
+| Push Web | web-push (VAPID) | 3.6.6 |
+| Push Mobile | firebase-admin (FCM) | 12.0.0 |
+| Mensajeria async | KafkaJS | 2.2.4 |
+| Validacion | Zod | 3.22.4 |
+| Logging | Winston | 3.11.0 |
+| Dev server | nodemon | 3.0.2 |
+| Puerto | 3007 | - |
 
-- Node.js 20+
-- MongoDB 7.0+
-- Redis 7.2+
-- Kafka 3.0+ (opcional, para eventos)
+---
 
-## 🛠️ Instalación
+## Caracteristicas
 
-```bash
-# Instalar dependencias
-npm install
+- Notificaciones en tiempo real via WebSocket (Socket.IO) — sin polling
+- Escalabilidad horizontal con @socket.io/redis-adapter: multiples instancias comparten conexiones
+- Push notifications Web (VAPID) directamente al navegador, sin aplicacion instalada
+- Push notifications Mobile via Firebase Cloud Messaging (FCM)
+- Envio masivo (bulk) a multiples usuarios o grupos en una sola llamada
+- Gestion de preferencias: cada usuario elige que tipos de notificaciones recibir
+- Gestion de suscripciones WebSocket y push por dispositivo
+- Sistema de colas con BullMQ — los envios pesados se procesan asincrona y confiablemente
+- Historial con paginacion en MongoDB — consulta, marcado como leido, estadisticas
+- Consumidor Kafka — recibe eventos de otros microservicios y genera notificaciones automaticamente
 
-# Copiar variables de entorno
-cp .env.example .env
+---
 
-# Generar claves VAPID para Web Push
-npx web-push generate-vapid-keys
+## Estructura del Proyecto
 
-# Configurar Firebase para FCM (ver sección Firebase)
+```
+Business-Notificaciones/
+├── src/
+│   ├── index.ts                               # Punto de entrada
+│   ├── domain/
+│   │   ├── entities/
+│   │   │   ├── Notification.ts               # Entidad notificacion
+│   │   │   └── Subscription.ts               # Suscripcion push
+│   │   ├── repositories/
+│   │   │   └── INotificationRepository.ts
+│   │   └── services/
+│   │       └── NotificationDomainService.ts
+│   ├── application/
+│   │   ├── usecases/
+│   │   │   ├── CreateNotification.ts         # Crear y enviar notificacion
+│   │   │   ├── MarkAsRead.ts                 # Marcar como leida
+│   │   │   ├── QueryNotifications.ts         # Consultar historial
+│   │   │   ├── ManageSubscription.ts         # Alta/baja suscripcion
+│   │   │   ├── UpdatePreferences.ts          # Preferencias de usuario
+│   │   │   └── SendBulkNotifications.ts      # Envio masivo
+│   │   └── dto/NotificationDTO.ts
+│   ├── infrastructure/
+│   │   ├── database/mongodb/
+│   │   │   └── MongoNotificationRepository.ts
+│   │   ├── websocket/
+│   │   │   ├── SocketServer.ts               # Servidor Socket.IO
+│   │   │   ├── WebSocketManager.ts           # Gestion de rooms/users
+│   │   │   └── SocketIOHandler.ts            # Handlers de eventos
+│   │   ├── push/
+│   │   │   ├── VapidProvider.ts              # Notificaciones push Web
+│   │   │   └── FCMProvider.ts                # Notificaciones push Mobile
+│   │   ├── queue/bullmq/
+│   │   │   ├── NotificationQueue.ts
+│   │   │   └── workers/NotificationWorker.ts
+│   │   ├── kafka/
+│   │   │   ├── KafkaConsumer.ts              # Consume eventos externos
+│   │   │   └── KafkaProducer.ts
+│   │   └── http/express/
+│   │       ├── routes.ts
+│   │       └── middleware/auth.middleware.ts
+│   └── shared/
+│       ├── config/config.ts
+│       └── utils/logger.ts
+├── docker-compose.yml                         # MongoDB + Redis + Kafka
+├── Dockerfile
+├── nodemon.json
+├── package.json
+└── tsconfig.json
 ```
 
-## ⚙️ Configuración
+---
 
-### Variables de Entorno
+## Instalacion
 
-Editar `.env` con tus credenciales:
+### Requisitos previos
+
+- Node.js >= 18
+- MongoDB (local o Atlas)
+- Redis >= 6
+- Para push web: generar claves VAPID
+- Para push mobile: cuenta Firebase con archivo de credenciales
+
+### Pasos
+
+```powershell
+# 1. Entrar al directorio
+cd C:\Proyectos\BusinessApp\Business-Notificaciones
+
+# 2. Instalar dependencias
+npm install
+
+# 3. Generar claves VAPID para push web
+npx web-push generate-vapid-keys
+
+# 4. Configurar variables de entorno
+copy .env.example .env
+# Editar .env con tus credenciales
+```
+
+### Levantar infraestructura con Docker
+
+```powershell
+docker-compose up -d
+```
+
+---
+
+## Variables de entorno (.env)
 
 ```env
-# Server
+# Servidor
 PORT=3007
 NODE_ENV=development
 
 # MongoDB
 MONGODB_URI=mongodb://localhost:27017/business_notificaciones
+MONGODB_DB_NAME=business_notificaciones
 
-# Redis
+# Redis (BullMQ + Socket.IO adapter)
 REDIS_HOST=localhost
 REDIS_PORT=6379
+REDIS_PASSWORD=
 
-# Socket.IO
-SOCKET_IO_CORS_ORIGIN=http://localhost:3000
-
-# Web Push (VAPID)
-VAPID_PUBLIC_KEY=tu-clave-publica
-VAPID_PRIVATE_KEY=tu-clave-privada
+# VAPID — Push notificaciones web
+VAPID_PUBLIC_KEY=tu-clave-publica-vapid
+VAPID_PRIVATE_KEY=tu-clave-privada-vapid
 VAPID_SUBJECT=mailto:admin@businessapp.com
 
-# Firebase Cloud Messaging
-FIREBASE_PROJECT_ID=tu-project-id
-FIREBASE_PRIVATE_KEY=tu-private-key
-FIREBASE_CLIENT_EMAIL=tu-client-email
+# Firebase FCM — Push notificaciones mobile
+FIREBASE_PROJECT_ID=tu-proyecto-firebase
+FIREBASE_PRIVATE_KEY=-----BEGIN PRIVATE KEY-----\ntu-clave\n-----END PRIVATE KEY-----
+FIREBASE_CLIENT_EMAIL=firebase-adminsdk@proyecto.iam.gserviceaccount.com
+
+# Socket.IO
+SOCKET_IO_CORS_ORIGIN=http://localhost:4200,http://localhost:3000
+
+# Kafka (opcional)
+KAFKA_BROKERS=localhost:9092
+KAFKA_CLIENT_ID=business-notificaciones
+KAFKA_GROUP_ID=notificaciones-group
+
+# Colas
+QUEUE_NOTIFICATION_NAME=notifications
+QUEUE_MAX_RETRIES=3
 ```
 
-### Configurar Firebase Cloud Messaging (FCM)
+---
 
-1. Ve a [Firebase Console](https://console.firebase.google.com/)
-2. Crea un proyecto o selecciona uno existente
-3. Ve a **Configuración del Proyecto** → **Cuentas de servicio**
-4. Haz clic en **Generar nueva clave privada**
-5. Descarga el archivo JSON y extrae:
-   - `project_id` → `FIREBASE_PROJECT_ID`
-   - `private_key` → `FIREBASE_PRIVATE_KEY`
-   - `client_email` → `FIREBASE_CLIENT_EMAIL`
-
-## 🚀 Uso
+## Levantar el Microservicio
 
 ### Desarrollo
 
-```bash
-# Modo desarrollo con hot-reload
+```powershell
+cd C:\Proyectos\BusinessApp\Business-Notificaciones
 npm run dev
 ```
 
-### Producción
+Arranca en http://localhost:3007 (HTTP) y ws://localhost:3007 (WebSocket) con nodemon.
 
-```bash
-# Compilar TypeScript
+### Produccion
+
+```powershell
 npm run build
-
-# Iniciar servidor
 npm start
 ```
 
-### Docker
+### Verificar que esta corriendo
 
-```bash
-# Construir imagen
-docker build -t business-notificaciones .
-
-# Ejecutar con docker-compose
-docker-compose up -d
+```powershell
+Invoke-RestMethod -Uri http://localhost:3007/health
 ```
 
-## 📡 API REST
+---
+
+## URLs Disponibles
+
+| URL | Descripcion |
+|-----|-------------|
+| http://localhost:3007/health | Health check del servicio |
+| http://localhost:3007/api/notifications | API REST de notificaciones |
+| ws://localhost:3007 | WebSocket Socket.IO |
+
+---
+
+## Endpoints de la API
 
 ### Notificaciones
 
-#### Crear Notificación
+| Metodo | Ruta | Descripcion |
+|--------|------|-------------|
+| POST | /api/notifications | Crear y enviar una notificacion |
+| POST | /api/notifications/bulk | Envio masivo de notificaciones |
+| GET | /api/notifications | Consultar notificaciones del usuario |
+| GET | /api/notifications/unread-count | Contador de no leidas |
+| POST | /api/notifications/:id/read | Marcar como leida |
+| POST | /api/notifications/read-all | Marcar todas como leidas |
 
-```http
-POST /api/notifications
-Content-Type: application/json
+### Suscripciones push
 
-{
-  "userId": "user123",
-  "type": "INFO",
-  "title": "Nuevo mensaje",
-  "message": "Tienes un nuevo mensaje en tu bandeja",
-  "channels": ["IN_APP", "PUSH"],
-  "priority": "NORMAL",
-  "metadata": {
-    "messageId": "msg456"
-  },
-  "actions": [
-    {
-      "label": "Ver mensaje",
-      "url": "/messages/msg456"
-    }
-  ]
-}
-```
+| Metodo | Ruta | Descripcion |
+|--------|------|-------------|
+| POST | /api/subscriptions | Registrar suscripcion push (VAPID/FCM) |
+| DELETE | /api/subscriptions/:id | Eliminar suscripcion |
+| GET | /api/subscriptions | Listar suscripciones del usuario |
 
-#### Notificaciones Masivas
+### Preferencias
 
-```http
-POST /api/notifications/bulk
-Content-Type: application/json
+| Metodo | Ruta | Descripcion |
+|--------|------|-------------|
+| GET | /api/preferences | Obtener preferencias del usuario |
+| PUT | /api/preferences | Actualizar preferencias de notificacion |
 
-{
-  "userIds": ["user1", "user2", "user3"],
-  "type": "SYSTEM",
-  "title": "Mantenimiento programado",
-  "message": "El sistema estará en mantenimiento mañana de 2-4 AM",
-  "priority": "HIGH"
-}
-```
+### Sistema
 
-#### Consultar Notificaciones
+| Metodo | Ruta | Descripcion |
+|--------|------|-------------|
+| GET | /health | Health check |
 
-```http
-GET /api/notifications?userId=user123&isRead=false&limit=20&skip=0
-```
+---
 
-#### Marcar como Leída
+## Ejemplos de Request
 
-```http
-PATCH /api/notifications/:id/read
-Content-Type: application/json
-
-{
-  "userId": "user123"
-}
-```
-
-### Push Subscriptions
-
-#### Suscribirse (Web Push)
-
-```http
-POST /api/subscriptions
-Content-Type: application/json
-
-{
-  "userId": "user123",
-  "deviceType": "WEB",
-  "endpoint": "https://fcm.googleapis.com/fcm/send/...",
-  "keys": {
-    "p256dh": "...",
-    "auth": "..."
-  }
-}
-```
-
-#### Suscribirse (FCM - Mobile)
-
-```http
-POST /api/subscriptions
-Content-Type: application/json
-
-{
-  "userId": "user123",
-  "deviceType": "ANDROID",
-  "fcmToken": "token-from-firebase-sdk",
-  "deviceInfo": {
-    "deviceName": "Samsung Galaxy S23"
-  }
-}
-```
-
-### Preferencias de Usuario
-
-#### Actualizar Preferencias
-
-```http
-PUT /api/preferences
-Content-Type: application/json
-
-{
-  "userId": "user123",
-  "preferences": {
-    "INFO": {
-      "inApp": true,
-      "push": false,
-      "websocket": true
-    },
-    "ERROR": {
-      "inApp": true,
-      "push": true,
-      "websocket": true
-    }
-  },
-  "quietHours": {
-    "enabled": true,
-    "startTime": "22:00",
-    "endTime": "08:00",
-    "timezone": "America/Mexico_City"
-  }
-}
-```
-
-## 🔌 WebSocket (Socket.IO)
-
-### Cliente JavaScript
-
-```javascript
-import io from 'socket.io-client';
-
-const socket = io('http://localhost:3007', {
-  path: '/socket.io',
-  transports: ['websocket']
-});
-
-// Autenticar
-socket.emit('authenticate', {
-  userId: 'user123',
-  token: 'jwt-token' // Opcional
-});
-
-socket.on('authenticated', (data) => {
-  console.log('Autenticado:', data);
-});
-
-// Recibir notificaciones en tiempo real
-socket.on('notification', (notification) => {
-  console.log('Nueva notificación:', notification);
-  // Mostrar notificación en UI
-});
-
-// Recibir contador de no leídas
-socket.on('unread_count', ({ count }) => {
-  console.log('No leídas:', count);
-});
-
-// Obtener notificaciones
-socket.emit('get_notifications', { limit: 20, skip: 0 });
-
-socket.on('notifications', ({ notifications, total, unreadCount }) => {
-  console.log('Notificaciones:', notifications);
-});
-
-// Marcar como leída
-socket.emit('mark_as_read', { notificationId: 'notif123' });
-
-socket.on('marked_as_read', ({ notificationId }) => {
-  console.log('Marcada como leída:', notificationId);
-});
-```
-
-### Eventos del Cliente
-
-- `authenticate` - Autenticar usuario
-- `get_notifications` - Obtener lista de notificaciones
-- `get_unread` - Obtener solo no leídas
-- `mark_as_read` - Marcar como leída
-- `mark_all_as_read` - Marcar todas como leídas
-- `ping` - Health check
-
-### Eventos del Servidor
-
-- `authenticated` - Autenticación exitosa
-- `notification` - Nueva notificación (tiempo real)
-- `notifications` - Lista de notificaciones
-- `unread_notifications` - Notificaciones no leídas
-- `unread_count` - Contador actualizado
-- `marked_as_read` - Confirmación de lectura
-- `pong` - Respuesta a ping
-- `error` - Error ocurrido
-
-## 🌐 Web Push (Frontend)
-
-### Solicitar Permiso y Suscribirse
-
-```javascript
-// Solicitar permiso
-const permission = await Notification.requestPermission();
-
-if (permission === 'granted') {
-  // Registrar Service Worker
-  const registration = await navigator.serviceWorker.register('/sw.js');
-
-  // Obtener clave pública VAPID del servidor
-  const response = await fetch('/api/vapid-public-key');
-  const { publicKey } = await response.json();
-
-  // Suscribirse a push
-  const subscription = await registration.pushManager.subscribe({
-    userVisibleOnly: true,
-    applicationServerKey: urlBase64ToUint8Array(publicKey)
-  });
-
-  // Enviar suscripción al servidor
-  await fetch('/api/subscriptions', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      userId: 'user123',
-      deviceType: 'WEB',
-      endpoint: subscription.endpoint,
-      keys: {
-        p256dh: arrayBufferToBase64(subscription.getKey('p256dh')),
-        auth: arrayBufferToBase64(subscription.getKey('auth'))
-      }
-    })
-  });
-}
-
-function urlBase64ToUint8Array(base64String) {
-  const padding = '='.repeat((4 - base64String.length % 4) % 4);
-  const base64 = (base64String + padding)
-    .replace(/\-/g, '+')
-    .replace(/_/g, '/');
-  const rawData = window.atob(base64);
-  return Uint8Array.from([...rawData].map(char => char.charCodeAt(0)));
-}
-```
-
-### Service Worker (sw.js)
-
-```javascript
-self.addEventListener('push', (event) => {
-  const data = event.data.json();
-  const { notification } = data;
-
-  const options = {
-    body: notification.body,
-    icon: notification.icon || '/icon.png',
-    badge: notification.badge || '/badge.png',
-    image: notification.image,
-    data: notification.data,
-    actions: notification.actions,
-    tag: notification.tag,
-    requireInteraction: notification.requireInteraction
-  };
-
-  event.waitUntil(
-    self.registration.showNotification(notification.title, options)
-  );
-});
-
-self.addEventListener('notificationclick', (event) => {
-  event.notification.close();
-
-  const url = event.notification.data.url || '/';
-
-  event.waitUntil(
-    clients.openWindow(url)
-  );
-});
-```
-
-## 🏗️ Arquitectura
-
-### Capas
-
-```
-src/
-├── domain/              # Lógica de negocio
-│   ├── entities/        # Entidades del dominio
-│   ├── repositories/    # Interfaces de repositorios
-│   └── services/        # Servicios del dominio
-├── application/         # Casos de uso
-│   ├── dto/             # Data Transfer Objects
-│   └── usecases/        # Casos de uso
-├── infrastructure/      # Implementaciones
-│   ├── database/        # MongoDB repositories
-│   ├── websocket/       # Socket.IO server
-│   ├── push/            # Push providers
-│   └── http/            # REST API
-└── shared/              # Utilidades compartidas
-    ├── config/          # Configuración
-    ├── errors/          # Errores personalizados
-    ├── utils/           # Utilidades
-    └── validators/      # Validaciones
-```
-
-### Entidades del Dominio
-
-- **Notification**: Notificación con tipo, canales, prioridad, acciones
-- **UserPreferences**: Preferencias por tipo y canal, quiet hours
-- **PushSubscription**: Suscripción Web Push o FCM
-
-### Tipos de Notificación
-
-- `INFO` - Información general
-- `SUCCESS` - Operación exitosa
-- `WARNING` - Advertencia
-- `ERROR` - Error
-- `SYSTEM` - Mensaje del sistema
-
-### Canales
-
-- `IN_APP` - Notificación almacenada en base de datos
-- `PUSH` - Push notification (Web/Mobile)
-- `WEBSOCKET` - En tiempo real via Socket.IO
-- `ALL` - Todos los canales
-
-### Prioridades
-
-- `LOW` - Baja prioridad
-- `NORMAL` - Prioridad normal
-- `HIGH` - Alta prioridad
-- `URGENT` - Urgente (ignora quiet hours)
-
-## 🧪 Testing
-
-```bash
-# Ejecutar tests
-npm test
-
-# Tests con coverage
-npm run test:coverage
-
-# Tests en modo watch
-npm run test:watch
-```
-
-## 📊 Monitoreo
-
-El microservicio publica logs a Kafka en el topic `business.logs`:
+### Crear notificacion
 
 ```json
+POST /api/notifications
 {
-  "service": "business-notificaciones",
-  "level": "info",
-  "message": "Notification sent",
-  "metadata": {
-    "notificationId": "notif123",
-    "userId": "user123"
-  },
-  "timestamp": "2024-01-15T10:30:00Z"
+  "userId": "uuid-del-usuario",
+  "type": "INFO",
+  "title": "Pedido aprobado",
+  "body": "Tu pedido #12345 fue aprobado y esta en proceso.",
+  "channels": ["websocket", "push"],
+  "data": { "orderId": "12345" }
 }
 ```
 
-## 🔒 Seguridad
+### Envio masivo
 
-- **CORS**: Configurado para orígenes permitidos
-- **Rate Limiting**: 100 requests por minuto por IP
-- **Helmet**: Headers de seguridad HTTP
-- **Validación**: Zod para validación de entrada
-- **JWT**: Autenticación con Business-Security (opcional)
+```json
+POST /api/notifications/bulk
+{
+  "userIds": ["uuid1", "uuid2", "uuid3"],
+  "type": "ALERT",
+  "title": "Mantenimiento programado",
+  "body": "El sistema estara en mantenimiento manana de 2am a 4am.",
+  "channels": ["websocket", "push"]
+}
+```
 
-## 🤝 Integración con otros microservicios
+### Registrar suscripcion push web (VAPID)
 
-### Business-Security
+```json
+POST /api/subscriptions
+{
+  "type": "web-push",
+  "endpoint": "https://fcm.googleapis.com/...",
+  "keys": {
+    "p256dh": "clave-p256dh",
+    "auth": "clave-auth"
+  }
+}
+```
 
-Valida tokens JWT para autenticación de usuarios.
+### Actualizar preferencias
 
-### Business-Log
+```json
+PUT /api/preferences
+{
+  "email": true,
+  "push": true,
+  "websocket": true,
+  "types": {
+    "INFO": true,
+    "WARNING": true,
+    "ALERT": true,
+    "SUCCESS": true
+  }
+}
+```
 
-Publica eventos de notificaciones al topic `business.logs`.
+---
 
-### Business-Mensajeria
+## WebSocket — Eventos Socket.IO
 
-Puede recibir eventos para enviar notificaciones cuando se envía un email/SMS.
+### Cliente se conecta
 
-## 📝 Licencia
+```javascript
+// Ejemplo desde Angular/frontend
+import { io } from 'socket.io-client';
 
-ISC
+const socket = io('http://localhost:3007', {
+  auth: { token: 'Bearer <jwt-token>' }
+});
 
-## 👥 Autor
+// Escuchar nueva notificacion
+socket.on('notification', (data) => {
+  console.log('Nueva notificacion:', data);
+});
 
-BusinessApp Team
+// Marcar como leida
+socket.emit('notification:read', { notificationId: '123' });
+```
+
+### Eventos disponibles
+
+| Evento | Direccion | Descripcion |
+|--------|-----------|-------------|
+| notification | server → client | Nueva notificacion en tiempo real |
+| notification:read | client → server | Marcar notificacion como leida |
+| unread-count | server → client | Actualizacion del contador de no leidas |
+| connected | server → client | Confirmacion de conexion exitosa |
+
+---
+
+## Tipos de Notificacion
+
+| Tipo | Descripcion |
+|------|-------------|
+| INFO | Informacion general |
+| SUCCESS | Operacion completada exitosamente |
+| WARNING | Advertencia que requiere atencion |
+| ALERT | Alerta urgente |
+| ERROR | Error en el sistema |
+
+---
+
+## Scripts npm
+
+| Comando | Descripcion |
+|---------|-------------|
+| npm run dev | Desarrollo con nodemon (hot-reload) |
+| npm run build | Compilar TypeScript a dist/ |
+| npm start | Ejecutar compilado (produccion) |
+| npm test | Tests con Jest |
+| npm run lint | Linting ESLint |
+| npm run format | Formatear con Prettier |
+
+---
+
+## Docker
+
+```powershell
+# Levantar MongoDB + Redis + Kafka
+docker-compose up -d
+
+# Ver logs
+docker-compose logs -f
+
+# Detener
+docker-compose down
+```
+
+---
+
+## Licencia
+
+Proyecto interno — Business ERP.
