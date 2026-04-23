@@ -1,4 +1,4 @@
-import { MongoClient, Db, Collection } from 'mongodb';
+import { MongoClient, Db, Collection, Document } from 'mongodb';
 import { config } from '@shared/config/config';
 import { logger } from '@shared/utils/logger';
 
@@ -67,7 +67,7 @@ export class MongoDatabase {
     return this.db;
   }
 
-  public getCollection<T = any>(name: string): Collection<T> {
+  public getCollection<T extends Document = Document>(name: string): Collection<T> {
     return this.getDatabase().collection<T>(name);
   }
 

@@ -1,5 +1,5 @@
 import { Queue, Worker, Job } from 'bullmq';
-import { createClient } from 'redis';
+import Redis from 'ioredis';
 import { PushSubscription } from '@domain/entities/PushSubscription';
 import { Notification } from '@domain/entities/Notification';
 import { ISubsriptionRepository } from '@domain/repositories/IPushSubscriptionRepository';
@@ -27,12 +27,11 @@ export class PushNotificationQueue {
   private fcmProvider: FCMProvider;
 
   constructor(private readonly subscriptionRepository: ISubsriptionRepository) {
-    const connection = createClient({
-      socket: {
-        host: config.redis.host,
-        port: config.redis.port
-      },
-      password: config.redis.password || undefined
+    const connection = new Redis({
+      host: config.redis.host,
+      port: config.redis.port,
+      password: config.redis.password || undefined,
+      maxRetriesPerRequest: null
     });
 
     this.queue = new Queue<PushNotificationJob>('push-notifications', {

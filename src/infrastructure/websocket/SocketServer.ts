@@ -1,14 +1,14 @@
 import { Server as SocketIOServer, Socket } from 'socket.io';
 import { Server as HttpServer } from 'http';
 import { createAdapter } from '@socket.io/redis-adapter';
-import { createClient } from 'redis';
+import Redis from 'ioredis';
 import { logger } from '@shared/utils/logger';
 import { config } from '@shared/config/config';
 
 export class SocketServer {
   private io: SocketIOServer;
-  private redisClient: ReturnType<typeof createClient>;
-  private subClient: ReturnType<typeof createClient>;
+  private redisClient: Redis;
+  private subClient: Redis;
 
   constructor(httpServer: HttpServer) {
     this.io = new SocketIOServer(httpServer, {
@@ -26,17 +26,13 @@ export class SocketServer {
 
   private async setupRedisAdapter(): Promise<void> {
     try {
-      this.redisClient = createClient({
-        socket: {
-          host: config.redis.host,
-          port: config.redis.port
-        },
+      this.redisClient = new Redis({
+        host: config.redis.host,
+        port: config.redis.port,
         password: config.redis.password || undefined
       });
 
       this.subClient = this.redisClient.duplicate();
-
-      await Promise.all([this.redisClient.connect(), this.subClient.connect()]);
 
       this.io.adapter(createAdapter(this.redisClient, this.subClient));
 
